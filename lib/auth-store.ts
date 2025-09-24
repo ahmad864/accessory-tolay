@@ -22,11 +22,16 @@ interface AuthState {
   isAdmin: () => boolean
 }
 
-// إنشاء عميل Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_KEY!
-)
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase URL or Anon Key is missing!")
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
 
 export const useAuth = create<AuthState>()(
   persist(
@@ -35,8 +40,9 @@ export const useAuth = create<AuthState>()(
       isAuthenticated: false,
 
       login: async (email: string, password: string) => {
+        const supabase = getSupabaseClient()
+
         try {
-          // جلب الإدمن من جدول 'admins'
           const { data, error } = await supabase
             .from("admins")
             .select("*")
@@ -48,7 +54,6 @@ export const useAuth = create<AuthState>()(
             return { success: false, message: "بيانات الدخول غير صحيحة" }
           }
 
-          // تعيين بيانات المستخدم
           set({
             user: {
               id: data.id,
@@ -76,7 +81,7 @@ export const useAuth = create<AuthState>()(
       },
     }),
     {
-      name: "auth-storage", // لتخزين حالة الجلسة
+      name: "auth-storage",
     }
   )
 )
