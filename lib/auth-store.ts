@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { supabase } from "@/lib/supabaseClient"
+import { createClient } from "@supabase/supabase-js"
 
 export type UserRole = "admin" | "user"
 
@@ -10,7 +10,6 @@ export interface User {
   id: string
   name: string
   email: string
-  phone?: string
   role: UserRole
   createdAt: string
 }
@@ -19,14 +18,15 @@ interface AuthState {
   user: User | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>
-  register: (userData: { name: string; email: string; phone?: string; password: string }) => Promise<{
-    success: boolean
-    message: string
-  }>
   logout: () => void
   isAdmin: () => boolean
-  isUser: () => boolean
 }
+
+// إنشاء عميل Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_KEY!
+)
 
 export const useAuth = create<AuthState>()(
   persist(
@@ -35,56 +35,35 @@ export const useAuth = create<AuthState>()(
       isAuthenticated: false,
 
       login: async (email: string, password: string) => {
-        // تحقق من جدول admins أو users
-        const { data, error } = await supabase
-          .from<User>("admins")
-          .select("*")
-          .eq("email", email)
-          .eq("password", password)
-          .single()
+        try {
+          // جلب الإدمن من جدول 'admins'
+          const { data, error } = await supabase
+            .from("admins")
+            .select("*")
+            .eq("email", email)
+            .eq("password", password)
+            .single()
 
-        if (error || !data) {
-          return { success: false, message: "بيانات الدخول غير صحيحة" }
-        }
+          if (error || !data) {
+            return { success: false, message: "بيانات الدخول غير صحيحة" }
+          }
 
-        set({ user: data, isAuthenticated: true })
-        return { success: true, message: "تم تسجيل الدخول بنجاح" }
-      },
-
-      register: async (userData) => {
-        // تحقق من وجود البريد مسبقاً
-        const { data: existingUser } = await supabase
-          .from<User>("admins")
-          .select("*")
-          .eq("email", userData.email)
-          .single()
-
-        if (existingUser) {
-          return { success: false, message: "البريد الإلكتروني مستخدم بالفعل" }
-        }
-
-        // إنشاء مستخدم جديد
-        const { data, error } = await supabase
-          .from<User>("admins")
-          .insert([
-            {
-              name: userData.name,
-              email: userData.email,
-              phone: userData.phone,
-              password: userData.password,
-              role: "user",
-              createdAt: new Date().toISOString(),
+          // تعيين بيانات المستخدم
+          set({
+            user: {
+              id: data.id,
+              name: data.name || "مدير",
+              email: data.email,
+              role: "admin",
+              createdAt: data.created_at,
             },
-          ])
-          .select()
-          .single()
+            isAuthenticated: true,
+          })
 
-        if (error || !data) {
-          return { success: false, message: "حدث خطأ أثناء إنشاء الحساب" }
+          return { success: true, message: "تم تسجيل دخول المدير بنجاح" }
+        } catch (err) {
+          return { success: false, message: "حدث خطأ أثناء تسجيل الدخول" }
         }
-
-        set({ user: data, isAuthenticated: true })
-        return { success: true, message: "تم إنشاء الحساب بنجاح" }
       },
 
       logout: () => {
@@ -95,14 +74,9 @@ export const useAuth = create<AuthState>()(
         const { user } = get()
         return user?.role === "admin"
       },
-
-      isUser: () => {
-        const { user } = get()
-        return user?.role === "user"
-      },
     }),
     {
-      name: "auth-storage",
-    },
-  ),
+      name: "auth-storage", // لتخزين حالة الجلسة
+    }
+  )
 )
