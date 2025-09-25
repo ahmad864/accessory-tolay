@@ -28,6 +28,7 @@ export default function AdminProductsPage() {
 
   const categories = ["خواتم", "أحلاق", "اساور", "سلاسل", "ساعات", "نظارات"];
 
+  // جلب المنتجات
   const fetchProducts = async () => {
     setLoading(true);
     const { data, error } = await supabase.from("products").select("*").order("name");
@@ -46,15 +47,28 @@ export default function AdminProductsPage() {
     else setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // رفع الصورة إلى Bucket Public
   const uploadImage = async (file: File) => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, file);
+
+    // رفع الصورة مع upsert لتجنب رفض الملفات
+    const { error: uploadError } = await supabase
+      .storage
+      .from("product-images")
+      .upload(fileName, file, { upsert: true });
+
     if (uploadError) { alert("خطأ في رفع الصورة: " + uploadError.message); return null; }
-    const { publicUrl } = supabase.storage.from("product-images").getPublicUrl(fileName);
-    return publicUrl;
+
+    const { data: publicData } = supabase
+      .storage
+      .from("product-images")
+      .getPublicUrl(fileName);
+
+    return publicData.publicUrl;
   };
 
+  // إضافة أو تعديل المنتج
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -140,12 +154,14 @@ export default function AdminProductsPage() {
             <input type="checkbox" name="low_stock" checked={formData.low_stock} onChange={handleChange} className="mr-2"/>
             الكمية قليلة
           </label>
+
           {editingProduct && editingProduct.image && (
             <div className="mb-2">
               <p>الصورة الحالية:</p>
               <Image src={editingProduct.image} alt={editingProduct.name} width={200} height={200} />
             </div>
           )}
+
           <input type="file" name="imageFile" accept="image/*" onChange={handleChange} className="mb-2"/>
           <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
             {editingProduct ? "تحديث المنتج" : "إضافة المنتج"}
