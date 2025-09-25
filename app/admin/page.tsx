@@ -31,7 +31,7 @@ export default function AdminPage() {
         <CardContent className="flex flex-col gap-4">
           <Button
             className="bg-[#7f5c7e] hover:bg-[#6b4c6a]"
-            onClick={() => alert("هنا يمكنك إضافة المنتجات")}
+            onClick={() => router.push("/admin/products")}
           >
             إدارة المنتجات
           </Button>
