@@ -20,7 +20,7 @@ export default function AdminProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    price: 0,
+    price: 1, // افتراضي 1 لتجنب رفض السياسة
     category: "",
     low_stock: false,
     imageFile: null as File | null,
@@ -28,13 +28,9 @@ export default function AdminProductsPage() {
 
   const categories = ["خواتم", "أحلاق", "اساور", "سلاسل", "ساعات", "نظارات"];
 
-  // جلب المنتجات
   const fetchProducts = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("name");
+    const { data, error } = await supabase.from("products").select("*").order("name");
     if (error) alert("خطأ في جلب المنتجات: " + error.message);
     else setProducts(data as Product[]);
     setLoading(false);
@@ -50,28 +46,25 @@ export default function AdminProductsPage() {
     else setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // رفع الصورة إلى Bucket
   const uploadImage = async (file: File) => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const { data, error: uploadError } = await supabase
-      .storage.from("product-images")
-      .upload(fileName, file);
-
+    const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, file);
     if (uploadError) { alert("خطأ في رفع الصورة: " + uploadError.message); return null; }
-
-    const { publicUrl, error: urlError } = supabase
-      .storage.from("product-images")
-      .getPublicUrl(fileName);
-
-    if (urlError) { alert("خطأ في الحصول على رابط الصورة: " + urlError.message); return null; }
-
+    const { publicUrl } = supabase.storage.from("product-images").getPublicUrl(fileName);
     return publicUrl;
   };
 
-  // إضافة أو تعديل المنتج
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // التحقق من تسجيل دخول Admin
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      alert("يجب تسجيل الدخول كـ Admin لإضافة أو تعديل المنتج.");
+      return;
+    }
+
     if (!formData.name || !formData.price || !formData.category) {
       alert("يرجى تعبئة كل الحقول المطلوبة");
       return;
@@ -79,45 +72,40 @@ export default function AdminProductsPage() {
 
     let imageUrl = editingProduct?.image || "";
     if (formData.imageFile) {
-      imageUrl = await uploadImage(formData.imageFile);
-      if (!imageUrl) return;
+      const uploadedUrl = await uploadImage(formData.imageFile);
+      if (!uploadedUrl) return;
+      imageUrl = uploadedUrl;
     }
 
     if (editingProduct) {
-      const { error } = await supabase
-        .from("products")
-        .update({
-          name: formData.name,
-          price: formData.price,
-          category: formData.category,
-          low_stock: formData.low_stock,
-          image: imageUrl,
-          updated_at: new Date(),
-        })
-        .eq("id", editingProduct.id);
+      const { error } = await supabase.from("products").update({
+        name: formData.name,
+        price: formData.price,
+        category: formData.category,
+        low_stock: formData.low_stock,
+        image: imageUrl,
+        updated_at: new Date(),
+      }).eq("id", editingProduct.id);
       if (error) alert("خطأ في تعديل المنتج: " + error.message);
       else alert("تم تعديل المنتج بنجاح");
     } else {
-      const { error } = await supabase.from("products").insert([
-        {
-          name: formData.name,
-          price: formData.price,
-          category: formData.category,
-          low_stock: formData.low_stock,
-          image: imageUrl,
-        },
-      ]);
+      const { error } = await supabase.from("products").insert([{
+        name: formData.name,
+        price: formData.price,
+        category: formData.category,
+        low_stock: formData.low_stock,
+        image: imageUrl,
+      }]);
       if (error) alert("خطأ في إضافة المنتج: " + error.message);
       else alert("تم إضافة المنتج بنجاح");
     }
 
-    setFormData({ name: "", price: 0, category: "", low_stock: false, imageFile: null });
+    setFormData({ name: "", price: 1, category: "", low_stock: false, imageFile: null });
     setEditingProduct(null);
     setShowForm(false);
     fetchProducts();
   };
 
-  // حذف المنتج
   const handleDelete = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
     const { error } = await supabase.from("products").delete().eq("id", id);
@@ -125,7 +113,6 @@ export default function AdminProductsPage() {
     fetchProducts();
   };
 
-  // تعديل المنتج
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setFormData({
@@ -160,6 +147,12 @@ export default function AdminProductsPage() {
             <input type="checkbox" name="low_stock" checked={formData.low_stock} onChange={handleChange} className="mr-2"/>
             الكمية قليلة
           </label>
+          {editingProduct && editingProduct.image && (
+            <div className="mb-2">
+              <p>الصورة الحالية:</p>
+              <Image src={editingProduct.image} alt={editingProduct.name} width={200} height={200} />
+            </div>
+          )}
           <input type="file" name="imageFile" accept="image/*" onChange={handleChange} className="mb-2"/>
           <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
             {editingProduct ? "تحديث المنتج" : "إضافة المنتج"}
