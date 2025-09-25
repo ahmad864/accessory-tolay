@@ -36,12 +36,18 @@ export default function AdminProductsPage() {
       .from("products")
       .select("id,name,price,image,category,low_stock")
       .order("name");
-    if (error) alert("خطأ في جلب المنتجات: " + error.message);
-    else setProducts(data as Product[]);
+    if (error) {
+      console.error("Error fetching products:", error);
+      alert("خطأ في جلب المنتجات: " + error.message);
+    } else {
+      setProducts(data as Product[]);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type, checked, files } = e.target;
@@ -56,7 +62,11 @@ export default function AdminProductsPage() {
     const fileExt = file.name.split(".").pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
     const { data, error } = await supabase.storage.from("product-images").upload(fileName, file);
-    if (error) { alert("خطأ في رفع الصورة: " + error.message); return null; }
+    if (error) {
+      console.error("Error uploading image:", error);
+      alert("خطأ في رفع الصورة: " + error.message);
+      return null;
+    }
     const { publicUrl } = supabase.storage.from("product-images").getPublicUrl(fileName);
     return publicUrl;
   };
@@ -72,7 +82,7 @@ export default function AdminProductsPage() {
     let imageUrl = editingProduct?.image || "";
     if (formData.imageFile) {
       imageUrl = await uploadImage(formData.imageFile);
-      if (!imageUrl) return;
+      if (!imageUrl) return; // التأكد من أن الصورة تم رفعها بنجاح
     }
 
     if (editingProduct) {
@@ -86,8 +96,12 @@ export default function AdminProductsPage() {
           image: imageUrl,
         })
         .eq("id", editingProduct.id);
-      if (error) alert("خطأ في تعديل المنتج: " + error.message);
-      else alert("تم تعديل المنتج بنجاح");
+      if (error) {
+        console.error("Error updating product:", error);
+        alert("خطأ في تعديل المنتج: " + error.message);
+      } else {
+        alert("تم تعديل المنتج بنجاح");
+      }
     } else {
       const { error } = await supabase.from("products").insert([
         {
@@ -98,10 +112,15 @@ export default function AdminProductsPage() {
           image: imageUrl,
         },
       ]);
-      if (error) alert("خطأ في إضافة المنتج: " + error.message);
-      else alert("تم إضافة المنتج بنجاح");
+      if (error) {
+        console.error("Error inserting product:", error);
+        alert("خطأ في إضافة المنتج: " + error.message);
+      } else {
+        alert("تم إضافة المنتج بنجاح");
+      }
     }
 
+    // إعادة تعيين البيانات وإغلاق النموذج
     setFormData({ name: "", price: 0, category: "", low_stock: false, imageFile: null });
     setEditingProduct(null);
     setShowForm(false);
@@ -111,8 +130,15 @@ export default function AdminProductsPage() {
   // حذف المنتج
   const handleDelete = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
+    if (!id) {
+      alert("المعرف غير صالح.");
+      return;
+    }
     const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) alert("خطأ في الحذف: " + error.message);
+    if (error) {
+      console.error("Error deleting product:", error);
+      alert("خطأ في الحذف: " + error.message);
+    }
     fetchProducts();
   };
 
