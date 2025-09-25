@@ -26,9 +26,10 @@ export default function AdminProductsPage() {
     imageFile: null as File | null,
   });
 
-  // قائمة الفئات
-  const categories = ["إلكترونيات", "ملابس", "أدوات منزلية", "ألعاب", "كتب"];
+  // قائمة الفئات الجديدة
+  const categories = ["خواتم", "أحلاق", "اساور", "سلاسل", "ساعات", "نظارات"];
 
+  // جلب المنتجات
   const fetchProducts = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -50,6 +51,7 @@ export default function AdminProductsPage() {
     else setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // رفع الصورة إلى Bucket
   const uploadImage = async (file: File) => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -59,6 +61,7 @@ export default function AdminProductsPage() {
     return publicUrl;
   };
 
+  // إضافة أو تعديل المنتج
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.price || !formData.category) {
@@ -105,6 +108,7 @@ export default function AdminProductsPage() {
     fetchProducts();
   };
 
+  // حذف المنتج
   const handleDelete = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
     const { error } = await supabase.from("products").delete().eq("id", id);
@@ -112,6 +116,7 @@ export default function AdminProductsPage() {
     fetchProducts();
   };
 
+  // تعديل المنتج
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setFormData({
@@ -146,7 +151,7 @@ export default function AdminProductsPage() {
 
           <label className="flex items-center mb-2">
             <input type="checkbox" name="low_stock" checked={formData.low_stock} onChange={handleChange} className="mr-2"/>
-            الكمية قليلة
+            الكمية قليلة (يمكن تفعيل التنبيه في المنتج)
           </label>
 
           <input type="file" name="imageFile" accept="image/*" onChange={handleChange} className="mb-2"/>
@@ -160,11 +165,13 @@ export default function AdminProductsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {products.map((p) => (
             <div key={p.id} className="border p-4 rounded shadow relative">
+              {p.low_stock && (
+                <span className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-sm">الكمية قليلة</span>
+              )}
               {p.image && <Image src={p.image} alt={p.name} width={200} height={200} className="mb-2" />}
               <h2 className="font-bold">{p.name}</h2>
               <p>السعر: {p.price}</p>
               <p>الفئة: {p.category}</p>
-              {p.low_stock && <p className="text-red-600 font-bold">الكمية قليلة</p>}
               <div className="mt-2 flex gap-2">
                 <button onClick={() => handleEdit(p)} className="bg-yellow-500 text-white px-2 py-1 rounded">تعديل</button>
                 <button onClick={() => handleDelete(p.id)} className="bg-red-600 text-white px-2 py-1 rounded">حذف</button>
