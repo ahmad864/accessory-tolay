@@ -26,7 +26,6 @@ export default function AdminProductsPage() {
     imageFile: null as File | null,
   });
 
-  // قائمة الفئات الجديدة
   const categories = ["خواتم", "أحلاق", "اساور", "سلاسل", "ساعات", "نظارات"];
 
   // جلب المنتجات
@@ -34,40 +33,39 @@ export default function AdminProductsPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,price,image,category,low_stock")
+      .select("*")
       .order("name");
-    if (error) {
-      console.error("Error fetching products:", error);
-      alert("خطأ في جلب المنتجات: " + error.message);
-    } else {
-      setProducts(data as Product[]);
-    }
+    if (error) alert("خطأ في جلب المنتجات: " + error.message);
+    else setProducts(data as Product[]);
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  useEffect(() => { fetchProducts(); }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type, checked, files } = e.target;
-    if (type === "checkbox") setFormData((prev) => ({ ...prev, [name]: checked }));
-    else if (type === "file") setFormData((prev) => ({ ...prev, [name]: files ? files[0] : null }));
-    else if (type === "number") setFormData((prev) => ({ ...prev, [name]: Number(value) }));
-    else setFormData((prev) => ({ ...prev, [name]: value }));
+    if (type === "checkbox") setFormData(prev => ({ ...prev, [name]: checked }));
+    else if (type === "file") setFormData(prev => ({ ...prev, [name]: files ? files[0] : null }));
+    else if (type === "number") setFormData(prev => ({ ...prev, [name]: Number(value) }));
+    else setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   // رفع الصورة إلى Bucket
   const uploadImage = async (file: File) => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const { data, error } = await supabase.storage.from("product-images").upload(fileName, file);
-    if (error) {
-      console.error("Error uploading image:", error);
-      alert("خطأ في رفع الصورة: " + error.message);
-      return null;
-    }
-    const { publicUrl } = supabase.storage.from("product-images").getPublicUrl(fileName);
+    const { data, error: uploadError } = await supabase
+      .storage.from("product-images")
+      .upload(fileName, file);
+
+    if (uploadError) { alert("خطأ في رفع الصورة: " + uploadError.message); return null; }
+
+    const { publicUrl, error: urlError } = supabase
+      .storage.from("product-images")
+      .getPublicUrl(fileName);
+
+    if (urlError) { alert("خطأ في الحصول على رابط الصورة: " + urlError.message); return null; }
+
     return publicUrl;
   };
 
@@ -82,7 +80,7 @@ export default function AdminProductsPage() {
     let imageUrl = editingProduct?.image || "";
     if (formData.imageFile) {
       imageUrl = await uploadImage(formData.imageFile);
-      if (!imageUrl) return; // التأكد من أن الصورة تم رفعها بنجاح
+      if (!imageUrl) return;
     }
 
     if (editingProduct) {
@@ -94,14 +92,11 @@ export default function AdminProductsPage() {
           category: formData.category,
           low_stock: formData.low_stock,
           image: imageUrl,
+          updated_at: new Date(),
         })
         .eq("id", editingProduct.id);
-      if (error) {
-        console.error("Error updating product:", error);
-        alert("خطأ في تعديل المنتج: " + error.message);
-      } else {
-        alert("تم تعديل المنتج بنجاح");
-      }
+      if (error) alert("خطأ في تعديل المنتج: " + error.message);
+      else alert("تم تعديل المنتج بنجاح");
     } else {
       const { error } = await supabase.from("products").insert([
         {
@@ -112,15 +107,10 @@ export default function AdminProductsPage() {
           image: imageUrl,
         },
       ]);
-      if (error) {
-        console.error("Error inserting product:", error);
-        alert("خطأ في إضافة المنتج: " + error.message);
-      } else {
-        alert("تم إضافة المنتج بنجاح");
-      }
+      if (error) alert("خطأ في إضافة المنتج: " + error.message);
+      else alert("تم إضافة المنتج بنجاح");
     }
 
-    // إعادة تعيين البيانات وإغلاق النموذج
     setFormData({ name: "", price: 0, category: "", low_stock: false, imageFile: null });
     setEditingProduct(null);
     setShowForm(false);
@@ -130,15 +120,8 @@ export default function AdminProductsPage() {
   // حذف المنتج
   const handleDelete = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
-    if (!id) {
-      alert("المعرف غير صالح.");
-      return;
-    }
     const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) {
-      console.error("Error deleting product:", error);
-      alert("خطأ في الحذف: " + error.message);
-    }
+    if (error) alert("خطأ في الحذف: " + error.message);
     fetchProducts();
   };
 
@@ -169,17 +152,14 @@ export default function AdminProductsPage() {
         <form onSubmit={handleSubmit} className="mb-6 border p-4 rounded bg-gray-50">
           <input type="text" name="name" placeholder="اسم المنتج" value={formData.name} onChange={handleChange} required className="border p-2 w-full mb-2"/>
           <input type="number" name="price" placeholder="السعر" value={formData.price} onChange={handleChange} required className="border p-2 w-full mb-2"/>
-          
           <select name="category" value={formData.category} onChange={handleChange} required className="border p-2 w-full mb-2">
             <option value="">اختر الفئة</option>
-            {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
           </select>
-
           <label className="flex items-center mb-2">
             <input type="checkbox" name="low_stock" checked={formData.low_stock} onChange={handleChange} className="mr-2"/>
-            الكمية قليلة (يمكن تفعيل التنبيه في المنتج)
+            الكمية قليلة
           </label>
-
           <input type="file" name="imageFile" accept="image/*" onChange={handleChange} className="mb-2"/>
           <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
             {editingProduct ? "تحديث المنتج" : "إضافة المنتج"}
@@ -189,11 +169,9 @@ export default function AdminProductsPage() {
 
       {loading ? <p>جارٍ التحميل...</p> :
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {products.map((p) => (
+          {products.map(p => (
             <div key={p.id} className="border p-4 rounded shadow relative">
-              {p.low_stock && (
-                <span className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-sm">الكمية قليلة</span>
-              )}
+              {p.low_stock && <span className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-sm">الكمية قليلة</span>}
               {p.image && <Image src={p.image} alt={p.name} width={200} height={200} className="mb-2" />}
               <h2 className="font-bold">{p.name}</h2>
               <p>السعر: {p.price}</p>
