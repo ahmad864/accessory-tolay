@@ -20,7 +20,7 @@ export default function AdminProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    price: 1, // افتراضي 1 لتجنب رفض السياسة
+    price: 1,
     category: "",
     low_stock: false,
     imageFile: null as File | null,
@@ -57,13 +57,6 @@ export default function AdminProductsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // التحقق من تسجيل دخول Admin
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      alert("يجب تسجيل الدخول كـ Admin لإضافة أو تعديل المنتج.");
-      return;
-    }
 
     if (!formData.name || !formData.price || !formData.category) {
       alert("يرجى تعبئة كل الحقول المطلوبة");
